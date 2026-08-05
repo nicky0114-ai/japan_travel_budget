@@ -3064,8 +3064,8 @@ function renderChildHistory() {
                     <span class="amount-jpy">¥${tx.jpy}</span>
                     <span class="amount-twd">NT$ ${tx.twd}</span>
                 </div>
-                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', false)">✏️</button>
-                <button class="delete-item-btn" onclick="deleteTransaction('${tx.id}', false)">🗑️</button>
+                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', false); event.stopPropagation();">✏️</button>
+                <button class="delete-item-btn" onclick="deleteTransaction('${tx.id}', false); event.stopPropagation();">🗑️</button>
             </div>
         `;
         list.appendChild(item);
@@ -3307,8 +3307,8 @@ function renderParentHistory() {
                     <span class="amount-jpy">¥${tx.jpy}</span>
                     <span class="amount-twd">NT$ ${tx.twd}</span>
                 </div>
-                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', true)">✏️</button>
-                <button class="delete-item-btn" onclick="deleteTransaction('${tx.id}', true)">🗑️</button>
+                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', true); event.stopPropagation();">✏️</button>
+                <button class="delete-item-btn" onclick="deleteTransaction('${tx.id}', true); event.stopPropagation();">🗑️</button>
             </div>
         `;
         list.appendChild(item);
@@ -4215,14 +4215,18 @@ function editTransaction(id, isParentView) {
             userSelect.appendChild(opt);
         });
         
-        // 設定日期時間 (轉為 YYYY-MM-DDThh:mm，防範無效或缺少 timestamp 欄位)
+        // 設定日期時間 (轉為 YYYY-MM-DDThh:mm，採用純手動字串格式化，避免任何瀏覽器時區轉換溢出錯誤)
         let timestamp = tx.timestamp || tx.ts || Date.now();
         let date = new Date(timestamp);
         if (isNaN(date.getTime())) {
             date = new Date();
         }
-        const tzoffset = date.getTimezoneOffset() * 60000;
-        const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+        const y = date.getFullYear();
+        const mo = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const h = String(date.getHours()).padStart(2, '0');
+        const mi = String(date.getMinutes()).padStart(2, '0');
+        const localISOTime = `${y}-${mo}-${d}T${h}:${mi}`;
         document.getElementById("edit-tx-date").value = localISOTime;
         
         document.getElementById("edit-tx-jpy").value = tx.jpy;
