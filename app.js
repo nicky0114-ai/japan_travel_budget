@@ -1451,10 +1451,12 @@ function openMemberModal(index = null) {
     }
     
     document.getElementById("member-modal").classList.add("active");
+    document.getElementById("member-modal").style.display = "flex";
 }
 
 function closeMemberModal() {
     document.getElementById("member-modal").classList.remove("active");
+    document.getElementById("member-modal").style.display = "none";
 }
 
 function saveMemberFromUI() {
@@ -1551,6 +1553,7 @@ let html5QrcodeScanner = null;
 function openSyncModal(type) {
     const overlay = document.getElementById("sync-modal");
     overlay.classList.add("active");
+    overlay.style.display = "flex";
     
     document.querySelectorAll(".modal-section").forEach(s => s.classList.remove("active"));
     
@@ -1565,7 +1568,9 @@ function openSyncModal(type) {
 
 // 關閉同步視窗
 function closeSyncModal() {
-    document.getElementById("sync-modal").classList.remove("active");
+    const overlay = document.getElementById("sync-modal");
+    overlay.classList.remove("active");
+    overlay.style.display = "none";
     stopCameraScanner();
 }
 
@@ -1976,8 +1981,10 @@ function editTransaction(id, isParentView) {
         
         document.getElementById("edit-tx-note").value = tx.note || "";
         
-        // 顯示編輯彈窗
-        document.getElementById("edit-transaction-modal").classList.add("active");
+        // 顯示編輯彈窗 (同時使用 classList 與 inline style 以防範外部 CSS 快取未更新問題)
+        const modal = document.getElementById("edit-transaction-modal");
+        modal.classList.add("active");
+        modal.style.display = "flex";
     } catch (err) {
         alert("開啟編輯視窗失敗！錯誤訊息：\n" + err.message + "\n\n" + err.stack);
     }
@@ -1994,7 +2001,9 @@ function handleEditPayMethodChange(value) {
 }
 
 function closeEditTransactionModal() {
-    document.getElementById("edit-transaction-modal").classList.remove("active");
+    const modal = document.getElementById("edit-transaction-modal");
+    modal.classList.remove("active");
+    modal.style.display = "none";
 }
 
 function saveTransactionEdit() {
