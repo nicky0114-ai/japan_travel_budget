@@ -1427,107 +1427,130 @@ function renderParentSettings() {
 
 // 彈窗編輯或新增成員
 function openMemberModal(index = null) {
-    const titleEl = document.getElementById("member-modal-title");
-    const nameInput = document.getElementById("member-name-input");
-    const avatarInput = document.getElementById("member-avatar-input");
-    const budgetInput = document.getElementById("member-budget-input");
-    const budgetGroup = document.getElementById("member-budget-group");
-    const typeInput = document.getElementById("member-type-input");
-    const indexInput = document.getElementById("member-edit-index");
-    
-    if (index !== null) {
-        // 編輯模式
-        const member = state.members[index];
-        if (!member) return;
+    try {
+        const titleEl = document.getElementById("member-modal-title");
+        const nameInput = document.getElementById("member-name-input");
+        const avatarInput = document.getElementById("member-avatar-input");
+        const budgetInput = document.getElementById("member-budget-input");
+        const budgetGroup = document.getElementById("member-budget-group");
+        const typeInput = document.getElementById("member-type-input");
+        const indexInput = document.getElementById("member-edit-index");
         
-        indexInput.value = index;
-        titleEl.innerText = `✏️ 編輯成員: ${member.name}`;
-        nameInput.value = member.name;
-        avatarInput.value = member.avatar;
-        budgetInput.value = member.budget;
-        typeInput.value = member.type;
+        if (index !== null) {
+            // 編輯模式
+            const member = state.members[index];
+            if (!member) return;
+            
+            indexInput.value = index;
+            titleEl.innerText = `✏️ 編輯成員: ${member.name}`;
+            nameInput.value = member.name;
+            avatarInput.value = member.avatar;
+            budgetInput.value = member.budget;
+            if (typeInput) {
+                typeInput.value = member.type || "kid";
+            }
+            
+            handleMemberTypeChange(member.type || "kid");
+        } else {
+            // 新增模式
+            indexInput.value = "";
+            titleEl.innerText = "➕ 新增家庭成員";
+            nameInput.value = "";
+            avatarInput.value = "🐼";
+            budgetInput.value = "2000";
+            if (typeInput) {
+                typeInput.value = "kid";
+            }
+            
+            handleMemberTypeChange("kid");
+        }
         
-        handleMemberTypeChange(member.type);
-    } else {
-        // 新增模式
-        indexInput.value = "";
-        titleEl.innerText = "➕ 新增家庭成員";
-        nameInput.value = "";
-        avatarInput.value = "🐼";
-        budgetInput.value = "2000";
-        typeInput.value = "kid";
-        
-        handleMemberTypeChange("kid");
+        const modal = document.getElementById("member-modal");
+        if (modal) {
+            modal.classList.add("active");
+            modal.style.display = "flex";
+        } else {
+            alert("找不到 #member-modal 彈窗元素，請確認網頁已更新部署成功且無快取！");
+        }
+    } catch (err) {
+        alert("開啟成員編輯視窗失敗，請確認網頁已部署最新版！\n\n錯誤訊息：\n" + err.message + "\n" + err.stack);
     }
-    
-    document.getElementById("member-modal").classList.add("active");
-    document.getElementById("member-modal").style.display = "flex";
 }
 
 function handleMemberTypeChange(type) {
     const budgetGroup = document.getElementById("member-budget-group");
-    if (type === "parent") {
-        budgetGroup.classList.add("hidden");
-    } else {
-        budgetGroup.classList.remove("hidden");
+    if (budgetGroup) {
+        if (type === "parent") {
+            budgetGroup.classList.add("hidden");
+        } else {
+            budgetGroup.classList.remove("hidden");
+        }
     }
 }
 
 function closeMemberModal() {
-    document.getElementById("member-modal").classList.remove("active");
-    document.getElementById("member-modal").style.display = "none";
+    const modal = document.getElementById("member-modal");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.style.display = "none";
+    }
 }
 
 function saveMemberFromUI() {
-    const indexVal = document.getElementById("member-edit-index").value;
-    const name = document.getElementById("member-name-input").value.trim();
-    const avatar = document.getElementById("member-avatar-input").value;
-    const type = document.getElementById("member-type-input").value;
-    const budget = type === "kid" ? (parseInt(document.getElementById("member-budget-input").value) || 0) : 0;
-    
-    if (!name) {
-        alert("姓名不能為空！");
-        return;
-    }
-    
-    if (indexVal !== "") {
-        // 編輯模式
-        const idx = parseInt(indexVal);
-        const member = state.members[idx];
-        if (!member) return;
+    try {
+        const indexVal = document.getElementById("member-edit-index").value;
+        const name = document.getElementById("member-name-input").value.trim();
+        const avatar = document.getElementById("member-avatar-input").value;
+        const typeInput = document.getElementById("member-type-input");
+        const type = typeInput ? typeInput.value : "kid";
+        const budget = type === "kid" ? (parseInt(document.getElementById("member-budget-input").value) || 0) : 0;
         
-        const oldId = member.id;
-        member.name = name;
-        member.avatar = avatar;
-        member.type = type;
-        member.budget = budget;
+        if (!name) {
+            alert("姓名不能為空！");
+            return;
+        }
         
-        // 更新歷史交易記錄的頭像和姓名
-        state.transactions.forEach(tx => {
-            if (tx.userId === oldId) {
-                tx.userName = name;
-                tx.userAvatar = avatar;
-            }
-        });
-    } else {
-        // 新增模式
-        const newMember = {
-            id: "member-" + Date.now(),
-            name: name,
-            avatar: avatar,
-            type: type,
-            budget: budget
-        };
-        state.members.push(newMember);
-    }
-    
-    saveStateToStorage();
-    closeMemberModal();
-    renderParentSettings();
-    
-    // 家長切換後，自動重繪家長首頁大盤
-    if (state.activeUser && state.activeUser.id === "parent") {
-        initParentDashboard();
+        if (indexVal !== "") {
+            // 編輯模式
+            const idx = parseInt(indexVal);
+            const member = state.members[idx];
+            if (!member) return;
+            
+            const oldId = member.id;
+            member.name = name;
+            member.avatar = avatar;
+            member.type = type;
+            member.budget = budget;
+            
+            // 更新歷史交易記錄的頭像和姓名
+            state.transactions.forEach(tx => {
+                if (tx.userId === oldId) {
+                    tx.userName = name;
+                    tx.userAvatar = avatar;
+                }
+            });
+        } else {
+            // 新增模式
+            const newMember = {
+                id: "member-" + Date.now(),
+                name: name,
+                avatar: avatar,
+                type: type,
+                budget: budget
+            };
+            state.members.push(newMember);
+        }
+        
+        saveStateToStorage();
+        closeMemberModal();
+        renderParentSettings();
+        
+        // 家長切換後，自動重繪家長首頁大盤
+        if (state.activeUser && state.activeUser.id === "parent") {
+            initParentDashboard();
+        }
+    } catch (err) {
+        alert("儲存成員資料失敗！錯誤訊息：\n" + err.message);
     }
 }
 
