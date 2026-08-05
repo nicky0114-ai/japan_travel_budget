@@ -3,6 +3,7 @@
 // 1. 全域狀態管理
 let state = {
     exchangeRate: 0.201, // 預設信用卡匯率 (0.198 * 1.015)
+    familyBudget: 100000, // 全家旅遊總預算 (台幣)
     parentPin: "1234",
     activeUser: null, // 目前登入的角色物件
     selectedCategory: "扭蛋", // 目前選擇的記帳類別
@@ -17,6 +18,7 @@ let state = {
 // 預設初使化數據
 const DEFAULT_STATE = {
     exchangeRate: 0.201,
+    familyBudget: 100000,
     parentPin: "1234",
     lastUpdated: 0,
     members: [
@@ -139,6 +141,7 @@ function saveStateToStorage() {
     state.lastUpdated = Date.now();
     const serializedState = {
         exchangeRate: state.exchangeRate,
+        familyBudget: state.familyBudget || 100000,
         parentPin: state.parentPin,
         members: state.members,
         creditCards: state.creditCards,
@@ -820,17 +823,12 @@ function initParentDashboard() {
 // Tab 1: 渲染全家總覽
 function renderParentOverview() {
     // 1. 統計總預算與支出
-    let totalBudget = 0;
+    let totalBudget = state.familyBudget || 100000; // 讀取全家旅遊總預算
     let totalSpent = 0;
     let cashSpent = 0;
     let cardSpent = 0;
     
     let kidsSpent = 0;
-    
-    // 計算小孩預算總和 (家長不計入)
-    state.members.forEach(m => {
-        if (m.type === "kid") totalBudget += m.budget;
-    });
     
     // 分開統計全體消費，排除小孩重複計入全家總體支出
     state.transactions.forEach(tx => {
@@ -841,14 +839,14 @@ function renderParentOverview() {
             totalSpent += tx.twd;
             if (tx.payMethod === "card") {
                 cardSpent += tx.twd;
-            } else {
+            } else if (tx.payMethod === "cash") {
                 cashSpent += tx.twd;
-            }
+            } // prepaid (事前支付) 只計入總支出 totalSpent，不計入現場現金 cashSpent 或現場刷卡 cardSpent
         }
     });
     
-    // 小孩的剩餘預算 = 小孩總預算 - 小孩總花費
-    const totalRemaining = totalBudget - kidsSpent;
+    // 全家剩餘預算 = 全家旅遊總預算 - 大人家長總支出 (小孩預算完全解耦，不放進這裡計算)
+    const totalRemaining = totalBudget - totalSpent;
     
     document.getElementById("parent-total-budget").innerText = `NT$ ${Math.round(totalBudget)}`;
     document.getElementById("parent-total-spent").innerText = `NT$ ${Math.round(totalSpent)}`;
@@ -1379,11 +1377,23 @@ function deleteCreditCard(index) {
     }
 }
 
+function saveFamilyBudgetFromUI() {
+    const val = parseFloat(document.getElementById("settings-family-budget").value) || 0;
+    state.familyBudget = val;
+    saveStateToStorage();
+}
+
 // Tab 3: 渲染系統設定
 function renderParentSettings() {
     document.getElementById("settings-rate").value = state.exchangeRate;
     document.getElementById("rate-preview-twd").innerText = Math.round(100 * state.exchangeRate);
     document.getElementById("settings-pin").value = state.parentPin;
+    
+    // 全家旅遊總預算
+    const famBudgetEl = document.getElementById("settings-family-budget");
+    if (famBudgetEl) {
+        famBudgetEl.value = state.familyBudget || 100000;
+    }
     
     // 渲染 Firebase 雲端設定狀態
     renderFirebaseSettingsUI();
@@ -1422,6 +1432,7 @@ function openMemberModal(index = null) {
     const avatarInput = document.getElementById("member-avatar-input");
     const budgetInput = document.getElementById("member-budget-input");
     const budgetGroup = document.getElementById("member-budget-group");
+    const typeInput = document.getElementById("member-type-input");
     const indexInput = document.getElementById("member-edit-index");
     
     if (index !== null) {
@@ -1434,12 +1445,9 @@ function openMemberModal(index = null) {
         nameInput.value = member.name;
         avatarInput.value = member.avatar;
         budgetInput.value = member.budget;
+        typeInput.value = member.type;
         
-        if (member.type === "parent") {
-            budgetGroup.classList.add("hidden");
-        } else {
-            budgetGroup.classList.remove("hidden");
-        }
+        handleMemberTypeChange(member.type);
     } else {
         // 新增模式
         indexInput.value = "";
@@ -1447,11 +1455,22 @@ function openMemberModal(index = null) {
         nameInput.value = "";
         avatarInput.value = "🐼";
         budgetInput.value = "2000";
-        budgetGroup.classList.remove("hidden");
+        typeInput.value = "kid";
+        
+        handleMemberTypeChange("kid");
     }
     
     document.getElementById("member-modal").classList.add("active");
     document.getElementById("member-modal").style.display = "flex";
+}
+
+function handleMemberTypeChange(type) {
+    const budgetGroup = document.getElementById("member-budget-group");
+    if (type === "parent") {
+        budgetGroup.classList.add("hidden");
+    } else {
+        budgetGroup.classList.remove("hidden");
+    }
 }
 
 function closeMemberModal() {
@@ -1463,7 +1482,8 @@ function saveMemberFromUI() {
     const indexVal = document.getElementById("member-edit-index").value;
     const name = document.getElementById("member-name-input").value.trim();
     const avatar = document.getElementById("member-avatar-input").value;
-    const budget = parseInt(document.getElementById("member-budget-input").value) || 0;
+    const type = document.getElementById("member-type-input").value;
+    const budget = type === "kid" ? (parseInt(document.getElementById("member-budget-input").value) || 0) : 0;
     
     if (!name) {
         alert("姓名不能為空！");
@@ -1479,9 +1499,8 @@ function saveMemberFromUI() {
         const oldId = member.id;
         member.name = name;
         member.avatar = avatar;
-        if (member.type === "kid") {
-            member.budget = budget;
-        }
+        member.type = type;
+        member.budget = budget;
         
         // 更新歷史交易記錄的頭像和姓名
         state.transactions.forEach(tx => {
@@ -1496,7 +1515,7 @@ function saveMemberFromUI() {
             id: "member-" + Date.now(),
             name: name,
             avatar: avatar,
-            type: "kid",
+            type: type,
             budget: budget
         };
         state.members.push(newMember);
@@ -1505,6 +1524,11 @@ function saveMemberFromUI() {
     saveStateToStorage();
     closeMemberModal();
     renderParentSettings();
+    
+    // 家長切換後，自動重繪家長首頁大盤
+    if (state.activeUser && state.activeUser.id === "parent") {
+        initParentDashboard();
+    }
 }
 
 // 刪除家庭成員
