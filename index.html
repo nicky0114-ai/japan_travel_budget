@@ -2080,7 +2080,7 @@ body {
                     <div id="member-settings-list">
                         <!-- 動態生成成員修改項目 -->
                     </div>
-                    <button class="action-btn" onclick="openMemberModal()">➕ 新增家庭成員</button>
+                    <button class="action-btn" onclick="addMemberInline()">➕ 新增家庭成員</button>
                 </div>
 
                 <div class="card-tag-section">☁️ 專屬雲端即時同步 (Firebase)</div>
@@ -3710,7 +3710,7 @@ function renderParentSettings() {
                     <span class="settings-member-name">${escapeHTML(m.name)} ${m.type === "parent" ? "(管理員)" : `(預算:NT$ ${m.budget})`}</span>
                 </div>
                 <div class="settings-member-actions">
-                    <button class="settings-btn" onclick="openMemberModal(${idx})">編輯</button>
+                    <button class="settings-btn" onclick="editMemberInline(${idx}, this)">編輯</button>
                     ${deleteBtn}
                 </div>
             `;
@@ -4517,6 +4517,205 @@ function renderFirebaseSettingsUI() {
         statusTextEl.innerHTML = "🔴 專屬雲端同步：未啟用 (純單機儲存)";
         statusTextEl.style.color = "var(--color-danger)";
         clearBtnEl.classList.add("hidden");
+    }
+}
+
+// ==================== 13. 行內編輯與新增成員 (完全不使用彈窗，徹底防範任何顯示與快取 Bug) ====================
+function editMemberInline(idx, btnEl) {
+    try {
+        const member = state.members[idx];
+        if (!member) return;
+        
+        const rowEl = btnEl.closest('.settings-member-row');
+        if (!rowEl) return;
+        
+        const emojis = ["🐼", "🐱", "🐰", "🦊", "🐶", "🦁", "🐸", "🐨", "🐷", "🐻", "🐮", "🐹", "🐯", "🐨", "👩‍💼", "👨‍💼", "👨‍👩-👧-👦", "👧", "👦"];
+        let emojiOptions = "";
+        emojis.forEach(e => {
+            emojiOptions += `<option value="${e}" ${e === member.avatar ? 'selected' : ''}>${e}</option>`;
+        });
+        
+        rowEl.innerHTML = `
+            <div class="inline-member-form" style="width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px; background-color: var(--accent-purple-light); border-radius: 8px; border: 2px solid var(--accent-purple); box-sizing: border-box; text-align: left;">
+                <div style="font-weight: bold; font-size: 13px; color: var(--text-main);">📝 修改成員資料</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">成員姓名</label>
+                        <input type="text" id="inline-mem-name-${idx}" value="${member.name}" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 13px; background: white; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">成員角色</label>
+                        <select id="inline-mem-type-${idx}" onchange="toggleInlineMemberBudgetField(${idx}, this.value)" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            <option value="parent" ${member.type === 'parent' ? 'selected' : ''}>👩‍💼 家長</option>
+                            <option value="kid" ${member.type === 'kid' ? 'selected' : ''}>👶 小孩</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">代表表情 Emoji</label>
+                        <select id="inline-mem-avatar-${idx}" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            ${emojiOptions}
+                        </select>
+                    </div>
+                    <div id="inline-mem-budget-group-${idx}" style="display: ${member.type === 'kid' ? 'block' : 'none'};">
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">預算上限 (台幣)</label>
+                        <input type="number" id="inline-mem-budget-${idx}" value="${member.budget}" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 13px; background: white; box-sizing: border-box;">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button onclick="saveMemberInline(${idx})" style="flex: 1; padding: 6px; background-color: var(--accent-green); border: 2px solid var(--text-main); border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; box-shadow: 0 2px 0 var(--text-main);">💾 儲存</button>
+                    <button onclick="renderParentSettings()" style="flex: 1; padding: 6px; background-color: var(--bg-primary); border: 2px solid var(--text-main); border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; box-shadow: 0 2px 0 var(--text-main);">取消</button>
+                </div>
+            </div>
+        `;
+    } catch (err) {
+        alert("開啟行內編輯成員表單失敗！錯誤原因：\n" + err.message);
+    }
+}
+
+function toggleInlineMemberBudgetField(idx, type) {
+    const budgetGroup = document.getElementById(`inline-mem-budget-group-${idx}`);
+    if (budgetGroup) {
+        budgetGroup.style.display = (type === "kid") ? "block" : "none";
+    }
+}
+
+function saveMemberInline(idx) {
+    try {
+        const member = state.members[idx];
+        if (!member) return;
+        
+        const name = document.getElementById(`inline-mem-name-${idx}`).value.trim();
+        const avatar = document.getElementById(`inline-mem-avatar-${idx}`).value;
+        const type = document.getElementById(`inline-mem-type-${idx}`).value;
+        const budget = type === "kid" ? (parseInt(document.getElementById(`inline-mem-budget-${idx}`).value) || 0) : 0;
+        
+        if (!name) {
+            alert("姓名不能為空！");
+            return;
+        }
+        
+        const oldId = member.id;
+        member.name = name;
+        member.avatar = avatar;
+        member.type = type;
+        member.budget = budget;
+        
+        // 更新歷史交易記錄的頭像和姓名
+        state.transactions.forEach(tx => {
+            if (tx.userId === oldId) {
+                tx.userName = name;
+                tx.userAvatar = avatar;
+            }
+        });
+        
+        saveStateToStorage();
+        renderParentSettings();
+        
+        if (state.activeUser && state.activeUser.id === "parent") {
+            initParentDashboard();
+        }
+    } catch (err) {
+        alert("儲存成員失敗！錯誤原因：\n" + err.message);
+    }
+}
+
+function addMemberInline() {
+    try {
+        const listEl = document.getElementById("member-settings-list");
+        if (!listEl) return;
+        
+        // 建立臨時的行內新增表單
+        const tempRow = document.createElement("div");
+        tempRow.className = "settings-member-row";
+        tempRow.style.width = "100%";
+        
+        const emojis = ["🐼", "🐱", "🐰", "🦊", "🐶", "🦁", "🐸", "🐨", "🐷", "🐻", "🐮", "🐹", "🐯", "🐨", "👩‍💼", "👨‍💼", "👨‍👩-👧-👦", "👧", "👦"];
+        let emojiOptions = "";
+        emojis.forEach(e => {
+            emojiOptions += `<option value="${e}">${e}</option>`;
+        });
+        
+        tempRow.innerHTML = `
+            <div class="inline-member-form" style="width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px; background-color: var(--accent-purple-light); border-radius: 8px; border: 2px solid var(--accent-purple); box-sizing: border-box; text-align: left;">
+                <div style="font-weight: bold; font-size: 13px; color: var(--text-main);">➕ 新增家庭成員</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">成員姓名</label>
+                        <input type="text" id="inline-new-name" placeholder="名字..." style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 13px; background: white; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">成員角色</label>
+                        <select id="inline-new-type" onchange="const g=document.getElementById('inline-new-budget-group'); g.style.display=(this.value==='kid'?'block':'none');" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            <option value="parent">👩‍💼 家長</option>
+                            <option value="kid" selected>👶 小孩</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">代表表情 Emoji</label>
+                        <select id="inline-new-avatar" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            ${emojiOptions}
+                        </select>
+                    </div>
+                    <div id="inline-new-budget-group" style="display: block;">
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">預算上限 (台幣)</label>
+                        <input type="number" id="inline-new-budget" value="2000" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 13px; background: white; box-sizing: border-box;">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 6px; margin-top: 4px;">
+                    <button onclick="saveNewMemberInline()" style="flex: 1; padding: 6px; background-color: var(--accent-green); border: 2px solid var(--text-main); border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; box-shadow: 0 2px 0 var(--text-main);">💾 儲存</button>
+                    <button onclick="renderParentSettings()" style="flex: 1; padding: 6px; background-color: var(--bg-primary); border: 2px solid var(--text-main); border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; box-shadow: 0 2px 0 var(--text-main);">取消</button>
+                </div>
+            </div>
+        `;
+        
+        listEl.appendChild(tempRow);
+        
+        // 自動捲動到新增表單處
+        tempRow.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    } catch (err) {
+        alert("開啟新增成員表單失敗！錯誤原因：\n" + err.message);
+    }
+}
+
+function saveNewMemberInline() {
+    try {
+        const name = document.getElementById("inline-new-name").value.trim();
+        const avatar = document.getElementById("inline-new-avatar").value;
+        const type = document.getElementById("inline-new-type").value;
+        const budget = type === "kid" ? (parseInt(document.getElementById("inline-new-budget").value) || 0) : 0;
+        
+        if (!name) {
+            alert("姓名不能為空！");
+            return;
+        }
+        
+        const newMember = {
+            id: "member-" + Date.now(),
+            name: name,
+            avatar: avatar,
+            type: type,
+            budget: budget
+        };
+        state.members.push(newMember);
+        
+        saveStateToStorage();
+        renderParentSettings();
+        
+        if (state.activeUser && state.activeUser.id === "parent") {
+            initParentDashboard();
+        }
+    } catch (err) {
+        alert("新增成員失敗！錯誤原因：\n" + err.message);
     }
 }
 
