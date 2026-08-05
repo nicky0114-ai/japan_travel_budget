@@ -2046,7 +2046,7 @@ body {
                     <div id="member-settings-list">
                         <!-- 動態生成成員修改項目 -->
                     </div>
-                    <button class="action-btn" onclick="addNewMemberPrompt()">➕ 新增家庭成員</button>
+                    <button class="action-btn" onclick="openMemberModal()">➕ 新增家庭成員</button>
                 </div>
 
                 <div class="card-tag-section">☁️ 專屬雲端即時同步 (Firebase)</div>
@@ -2193,6 +2193,47 @@ body {
                 <div class="modal-actions" style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px;">
                     <button class="submit-btn" style="background-color: var(--accent-purple); color: white;" onclick="saveTransactionEdit()">💾 儲存修改</button>
                     <button class="cancel-btn" style="width: 100%;" onclick="closeEditTransactionModal()">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. 成員編輯/新增彈出視窗 (Modal) -->
+        <div id="member-modal" class="modal-overlay">
+            <div class="modal-content card">
+                <span class="close-modal" onclick="closeMemberModal()">&times;</span>
+                <h2 id="member-modal-title">🐼 新增家庭成員</h2>
+                
+                <input type="hidden" id="member-edit-index" value="">
+                
+                <div class="form-group">
+                    <label class="control-label" style="display: block; font-weight: bold; margin-bottom: 5px;">成員姓名</label>
+                    <input type="text" id="member-name-input" class="form-control" placeholder="輸入名字..." style="width:100%; box-sizing: border-box; padding:8px; border:2px solid var(--text-main); border-radius:8px;">
+                </div>
+                
+                <div class="form-group" style="margin-top: 10px;">
+                    <label class="control-label" style="display: block; font-weight: bold; margin-bottom: 5px;">代表表情 Emoji</label>
+                    <select id="member-avatar-input" class="form-control" style="width:100%; padding:8px; border:2px solid var(--text-main); border-radius:8px;">
+                        <option value="🐼">🐼 熊貓</option>
+                        <option value="🐱">🐱 貓咪</option>
+                        <option value="🐰">🐰 兔子</option>
+                        <option value="🦊">🦊 狐狸</option>
+                        <option value="🐶">🐶 狗狗</option>
+                        <option value="🦁">🦁 獅子</option>
+                        <option value="🐸">🐸 青蛙</option>
+                        <option value="🐨">🐨 考拉</option>
+                        <option value="🐷">🐷 小豬</option>
+                        <option value="🐻">🐻 熊熊</option>
+                    </select>
+                </div>
+                
+                <div id="member-budget-group" class="form-group" style="margin-top: 10px;">
+                    <label class="control-label" style="display: block; font-weight: bold; margin-bottom: 5px;">預算上限 (台幣)</label>
+                    <input type="number" id="member-budget-input" class="form-control" placeholder="輸入額度..." style="width:100%; box-sizing: border-box; padding:8px; border:2px solid var(--text-main); border-radius:8px;">
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 20px; display: flex; flex-direction: column; gap: 8px;">
+                    <button class="submit-btn" style="background-color: var(--accent-purple); color: white;" onclick="saveMemberFromUI()">💾 儲存資料</button>
+                    <button class="cancel-btn" style="width: 100%;" onclick="closeMemberModal()">取消</button>
                 </div>
             </div>
         </div>
@@ -3617,7 +3658,7 @@ function renderParentSettings() {
                     <span class="settings-member-name">${escapeHTML(m.name)} ${m.type === "parent" ? "(管理員)" : `(預算:NT$ ${m.budget})`}</span>
                 </div>
                 <div class="settings-member-actions">
-                    <button class="settings-btn" onclick="editMemberPrompt(${idx})">編輯</button>
+                    <button class="settings-btn" onclick="openMemberModal(${idx})">編輯</button>
                     ${deleteBtn}
                 </div>
             `;
@@ -3626,71 +3667,93 @@ function renderParentSettings() {
     }
 }
 
-// 編輯成員
-function editMemberPrompt(index) {
-    const member = state.members[index];
-    if (!member) return;
+// 彈窗編輯或新增成員
+function openMemberModal(index = null) {
+    const titleEl = document.getElementById("member-modal-title");
+    const nameInput = document.getElementById("member-name-input");
+    const avatarInput = document.getElementById("member-avatar-input");
+    const budgetInput = document.getElementById("member-budget-input");
+    const budgetGroup = document.getElementById("member-budget-group");
+    const indexInput = document.getElementById("member-edit-index");
     
-    const newName = prompt("請輸入成員名字：", member.name);
-    if (newName === null) return;
-    const name = newName.trim();
-    if (!name) return;
-    
-    const newAvatar = prompt("請輸入成員代表 Emoji (一個圖案)：", member.avatar);
-    if (newAvatar === null) return;
-    const avatar = newAvatar.trim() || "🐱";
-    
-    let budget = member.budget;
-    if (member.type === "kid") {
-        const newBudget = prompt("請設定其預算上限 (台幣)：", member.budget);
-        if (newBudget !== null) {
-            const parsed = parseInt(newBudget);
-            if (!isNaN(parsed) && parsed >= 0) budget = parsed;
+    if (index !== null) {
+        // 編輯模式
+        const member = state.members[index];
+        if (!member) return;
+        
+        indexInput.value = index;
+        titleEl.innerText = `✏️ 編輯成員: ${member.name}`;
+        nameInput.value = member.name;
+        avatarInput.value = member.avatar;
+        budgetInput.value = member.budget;
+        
+        if (member.type === "parent") {
+            budgetGroup.classList.add("hidden");
+        } else {
+            budgetGroup.classList.remove("hidden");
         }
+    } else {
+        // 新增模式
+        indexInput.value = "";
+        titleEl.innerText = "➕ 新增家庭成員";
+        nameInput.value = "";
+        avatarInput.value = "🐼";
+        budgetInput.value = "2000";
+        budgetGroup.classList.remove("hidden");
     }
     
-    // 更新舊交易記錄中的成員名稱與頭像
-    const oldId = member.id;
-    member.name = name;
-    member.avatar = avatar;
-    member.budget = budget;
-    
-    state.transactions.forEach(tx => {
-        if (tx.userId === oldId) {
-            tx.userName = name;
-            tx.userAvatar = avatar;
-        }
-    });
-    
-    saveStateToStorage();
-    renderParentSettings();
+    document.getElementById("member-modal").classList.add("active");
 }
 
-// 新增家庭成員
-function addNewMemberPrompt() {
-    const newName = prompt("請輸入新成員名字：");
-    if (newName === null) return;
-    const name = newName.trim();
-    if (!name) return;
+function closeMemberModal() {
+    document.getElementById("member-modal").classList.remove("active");
+}
+
+function saveMemberFromUI() {
+    const indexVal = document.getElementById("member-edit-index").value;
+    const name = document.getElementById("member-name-input").value.trim();
+    const avatar = document.getElementById("member-avatar-input").value;
+    const budget = parseInt(document.getElementById("member-budget-input").value) || 0;
     
-    const newAvatar = prompt("請輸入代表 Emoji 圖案：", "🐼");
-    if (newAvatar === null) return;
-    const avatar = newAvatar.trim() || "🐼";
+    if (!name) {
+        alert("姓名不能為空！");
+        return;
+    }
     
-    const newBudget = prompt("請設定預算上限 (台幣)：", "2000");
-    if (newBudget === null) return;
-    const budget = parseInt(newBudget) || 0;
+    if (indexVal !== "") {
+        // 編輯模式
+        const idx = parseInt(indexVal);
+        const member = state.members[idx];
+        if (!member) return;
+        
+        const oldId = member.id;
+        member.name = name;
+        member.avatar = avatar;
+        if (member.type === "kid") {
+            member.budget = budget;
+        }
+        
+        // 更新歷史交易記錄的頭像和姓名
+        state.transactions.forEach(tx => {
+            if (tx.userId === oldId) {
+                tx.userName = name;
+                tx.userAvatar = avatar;
+            }
+        });
+    } else {
+        // 新增模式
+        const newMember = {
+            id: "member-" + Date.now(),
+            name: name,
+            avatar: avatar,
+            type: "kid",
+            budget: budget
+        };
+        state.members.push(newMember);
+    }
     
-    const newMember = {
-        id: "member-" + Date.now(),
-        name: name,
-        avatar: avatar,
-        type: "kid",
-        budget: budget
-    };
-    
-    state.members.push(newMember);
     saveStateToStorage();
+    closeMemberModal();
     renderParentSettings();
 }
 
@@ -4092,6 +4155,11 @@ function setupEventListeners() {
         const editOverlay = document.getElementById("edit-transaction-modal");
         if (e.target === editOverlay) {
             closeEditTransactionModal();
+        }
+        
+        const memberOverlay = document.getElementById("member-modal");
+        if (e.target === memberOverlay) {
+            closeMemberModal();
         }
     });
 }
