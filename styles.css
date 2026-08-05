@@ -1455,8 +1455,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(74, 62, 61, 0.6);
-    backdrop-filter: blur(4px);
+    background-color: rgba(0, 0, 0, 0.65); /* 採用標準半透明黑遮罩，不用 blur 濾鏡防範部分瀏覽器 GPU 渲染出錯 */
     z-index: 1000;
     display: none;
     justify-content: center;
@@ -1476,12 +1475,12 @@ body {
     background-color: var(--bg-primary);
     margin-bottom: 0; /* 覆蓋 card 的 margin-bottom */
     position: relative;
-    animation: modalBounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    animation: modalFadeIn 0.2s ease-out forwards;
 }
 
-@keyframes modalBounce {
-    from { opacity: 0; transform: translateY(40px) scale(0.9); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .close-modal {
