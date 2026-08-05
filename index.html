@@ -4168,61 +4168,72 @@ function setupEventListeners() {
 
 // 編輯記帳
 function editTransaction(id, isParentView) {
-    const tx = state.transactions.find(t => t.id === id);
-    if (!tx) return;
-    
-    document.getElementById("edit-tx-id").value = tx.id;
-    document.getElementById("edit-tx-is-parent-view").value = isParentView ? "true" : "false";
-    
-    // 渲染成員下拉選單
-    const userSelect = document.getElementById("edit-tx-user");
-    userSelect.innerHTML = "";
-    state.members.forEach(m => {
-        const opt = document.createElement("option");
-        opt.value = m.id;
-        opt.text = `${m.avatar} ${m.name}`;
-        if (m.id === tx.userId) opt.selected = true;
-        userSelect.appendChild(opt);
-    });
-    
-    // 設定日期時間 (轉為 YYYY-MM-DDThh:mm)
-    const date = new Date(tx.timestamp);
-    const tzoffset = date.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
-    document.getElementById("edit-tx-date").value = localISOTime;
-    
-    document.getElementById("edit-tx-jpy").value = tx.jpy;
-    
-    // 類別選擇
-    const catSelect = document.getElementById("edit-tx-category");
-    catSelect.value = tx.category;
-    
-    // 支付方式
-    const paySelect = document.getElementById("edit-tx-paymethod");
-    paySelect.value = tx.payMethod;
-    
-    // 刷卡卡別
-    const cardSelect = document.getElementById("edit-tx-card");
-    cardSelect.innerHTML = '<option value="">-- 選擇信用卡 --</option>';
-    state.creditCards.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c.name;
-        opt.text = c.name;
-        if (c.name === tx.cardName) opt.selected = true;
-        cardSelect.appendChild(opt);
-    });
-    
-    const cardGroup = document.getElementById("edit-tx-card-group");
-    if (tx.payMethod === "card") {
-        cardGroup.classList.remove("hidden");
-    } else {
-        cardGroup.classList.add("hidden");
+    try {
+        const tx = state.transactions.find(t => t.id === id);
+        if (!tx) {
+            alert("找不到該筆交易記錄！");
+            return;
+        }
+        
+        document.getElementById("edit-tx-id").value = tx.id;
+        document.getElementById("edit-tx-is-parent-view").value = isParentView ? "true" : "false";
+        
+        // 渲染成員下拉選單
+        const userSelect = document.getElementById("edit-tx-user");
+        userSelect.innerHTML = "";
+        state.members.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m.id;
+            opt.text = `${m.avatar} ${m.name}`;
+            if (m.id === tx.userId) opt.selected = true;
+            userSelect.appendChild(opt);
+        });
+        
+        // 設定日期時間 (轉為 YYYY-MM-DDThh:mm，防範無效或缺少 timestamp 欄位)
+        let timestamp = tx.timestamp || tx.ts || Date.now();
+        let date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            date = new Date();
+        }
+        const tzoffset = date.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+        document.getElementById("edit-tx-date").value = localISOTime;
+        
+        document.getElementById("edit-tx-jpy").value = tx.jpy;
+        
+        // 類別選擇
+        const catSelect = document.getElementById("edit-tx-category");
+        catSelect.value = tx.category || "飲食";
+        
+        // 支付方式
+        const paySelect = document.getElementById("edit-tx-paymethod");
+        paySelect.value = tx.payMethod || "cash";
+        
+        // 刷卡卡別
+        const cardSelect = document.getElementById("edit-tx-card");
+        cardSelect.innerHTML = '<option value="">-- 選擇信用卡 --</option>';
+        state.creditCards.forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c.name;
+            opt.text = c.name;
+            if (c.name === tx.cardName) opt.selected = true;
+            cardSelect.appendChild(opt);
+        });
+        
+        const cardGroup = document.getElementById("edit-tx-card-group");
+        if (tx.payMethod === "card") {
+            cardGroup.classList.remove("hidden");
+        } else {
+            cardGroup.classList.add("hidden");
+        }
+        
+        document.getElementById("edit-tx-note").value = tx.note || "";
+        
+        // 顯示編輯彈窗
+        document.getElementById("edit-transaction-modal").classList.add("active");
+    } catch (err) {
+        alert("開啟編輯視窗失敗！錯誤訊息：\n" + err.message + "\n\n" + err.stack);
     }
-    
-    document.getElementById("edit-tx-note").value = tx.note || "";
-    
-    // 顯示編輯彈窗
-    document.getElementById("edit-transaction-modal").classList.add("active");
 }
 
 function handleEditPayMethodChange(value) {
