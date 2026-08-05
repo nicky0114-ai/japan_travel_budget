@@ -1406,7 +1406,7 @@ function renderParentSettings() {
                     <span class="settings-member-name">${escapeHTML(m.name)} ${m.type === "parent" ? "(管理員)" : `(預算:NT$ ${m.budget})`}</span>
                 </div>
                 <div class="settings-member-actions">
-                    <button class="settings-btn" onclick="editMemberPrompt(${idx})">編輯</button>
+                    <button class="settings-btn" onclick="openMemberModal(${idx})">編輯</button>
                     ${deleteBtn}
                 </div>
             `;
@@ -1415,71 +1415,93 @@ function renderParentSettings() {
     }
 }
 
-// 編輯成員
-function editMemberPrompt(index) {
-    const member = state.members[index];
-    if (!member) return;
+// 彈窗編輯或新增成員
+function openMemberModal(index = null) {
+    const titleEl = document.getElementById("member-modal-title");
+    const nameInput = document.getElementById("member-name-input");
+    const avatarInput = document.getElementById("member-avatar-input");
+    const budgetInput = document.getElementById("member-budget-input");
+    const budgetGroup = document.getElementById("member-budget-group");
+    const indexInput = document.getElementById("member-edit-index");
     
-    const newName = prompt("請輸入成員名字：", member.name);
-    if (newName === null) return;
-    const name = newName.trim();
-    if (!name) return;
-    
-    const newAvatar = prompt("請輸入成員代表 Emoji (一個圖案)：", member.avatar);
-    if (newAvatar === null) return;
-    const avatar = newAvatar.trim() || "🐱";
-    
-    let budget = member.budget;
-    if (member.type === "kid") {
-        const newBudget = prompt("請設定其預算上限 (台幣)：", member.budget);
-        if (newBudget !== null) {
-            const parsed = parseInt(newBudget);
-            if (!isNaN(parsed) && parsed >= 0) budget = parsed;
+    if (index !== null) {
+        // 編輯模式
+        const member = state.members[index];
+        if (!member) return;
+        
+        indexInput.value = index;
+        titleEl.innerText = `✏️ 編輯成員: ${member.name}`;
+        nameInput.value = member.name;
+        avatarInput.value = member.avatar;
+        budgetInput.value = member.budget;
+        
+        if (member.type === "parent") {
+            budgetGroup.classList.add("hidden");
+        } else {
+            budgetGroup.classList.remove("hidden");
         }
+    } else {
+        // 新增模式
+        indexInput.value = "";
+        titleEl.innerText = "➕ 新增家庭成員";
+        nameInput.value = "";
+        avatarInput.value = "🐼";
+        budgetInput.value = "2000";
+        budgetGroup.classList.remove("hidden");
     }
     
-    // 更新舊交易記錄中的成員名稱與頭像
-    const oldId = member.id;
-    member.name = name;
-    member.avatar = avatar;
-    member.budget = budget;
-    
-    state.transactions.forEach(tx => {
-        if (tx.userId === oldId) {
-            tx.userName = name;
-            tx.userAvatar = avatar;
-        }
-    });
-    
-    saveStateToStorage();
-    renderParentSettings();
+    document.getElementById("member-modal").classList.add("active");
 }
 
-// 新增家庭成員
-function addNewMemberPrompt() {
-    const newName = prompt("請輸入新成員名字：");
-    if (newName === null) return;
-    const name = newName.trim();
-    if (!name) return;
+function closeMemberModal() {
+    document.getElementById("member-modal").classList.remove("active");
+}
+
+function saveMemberFromUI() {
+    const indexVal = document.getElementById("member-edit-index").value;
+    const name = document.getElementById("member-name-input").value.trim();
+    const avatar = document.getElementById("member-avatar-input").value;
+    const budget = parseInt(document.getElementById("member-budget-input").value) || 0;
     
-    const newAvatar = prompt("請輸入代表 Emoji 圖案：", "🐼");
-    if (newAvatar === null) return;
-    const avatar = newAvatar.trim() || "🐼";
+    if (!name) {
+        alert("姓名不能為空！");
+        return;
+    }
     
-    const newBudget = prompt("請設定預算上限 (台幣)：", "2000");
-    if (newBudget === null) return;
-    const budget = parseInt(newBudget) || 0;
+    if (indexVal !== "") {
+        // 編輯模式
+        const idx = parseInt(indexVal);
+        const member = state.members[idx];
+        if (!member) return;
+        
+        const oldId = member.id;
+        member.name = name;
+        member.avatar = avatar;
+        if (member.type === "kid") {
+            member.budget = budget;
+        }
+        
+        // 更新歷史交易記錄的頭像和姓名
+        state.transactions.forEach(tx => {
+            if (tx.userId === oldId) {
+                tx.userName = name;
+                tx.userAvatar = avatar;
+            }
+        });
+    } else {
+        // 新增模式
+        const newMember = {
+            id: "member-" + Date.now(),
+            name: name,
+            avatar: avatar,
+            type: "kid",
+            budget: budget
+        };
+        state.members.push(newMember);
+    }
     
-    const newMember = {
-        id: "member-" + Date.now(),
-        name: name,
-        avatar: avatar,
-        type: "kid",
-        budget: budget
-    };
-    
-    state.members.push(newMember);
     saveStateToStorage();
+    closeMemberModal();
     renderParentSettings();
 }
 
@@ -1876,6 +1898,11 @@ function setupEventListeners() {
         const editOverlay = document.getElementById("edit-transaction-modal");
         if (e.target === editOverlay) {
             closeEditTransactionModal();
+        }
+        
+        const memberOverlay = document.getElementById("member-modal");
+        if (e.target === memberOverlay) {
+            closeMemberModal();
         }
     });
 }
