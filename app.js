@@ -293,9 +293,9 @@ function renderRoleGrid() {
         }
     });
     
-    // 渲染家長卡片（置底滿寬）
-    const parentMember = state.members.find(m => m.type === "parent");
-    if (parentMember) {
+    // 渲染家長卡片（置底滿寬，支援多位家長，如媽媽、爸爸）
+    const parentMembers = state.members.filter(m => m.type === "parent");
+    parentMembers.forEach(parentMember => {
         const parentCard = document.createElement("div");
         parentCard.className = "role-card parent";
         parentCard.onclick = () => selectRole(parentMember.id);
@@ -307,7 +307,7 @@ function renderRoleGrid() {
             </div>
         `;
         grid.appendChild(parentCard);
-    }
+    });
 }
 
 function selectRole(userId) {
@@ -700,7 +700,7 @@ function saveParentTransaction(e) {
     
     const note = noteInput.value.trim() || `公用${state.selectedParentCategory}支出`;
     
-    const parentMember = state.members.find(m => m.type === "parent") || { id: "parent", name: "家長", avatar: "🐕" };
+    const parentMember = (state.activeUser && state.members.find(m => m.id === state.activeUser.id)) || state.members.find(m => m.type === "parent") || { id: "parent", name: "家長", avatar: "🐕" };
     
     const newTx = {
         id: "tx-" + Date.now() + Math.random().toString(36).substr(2, 5),
