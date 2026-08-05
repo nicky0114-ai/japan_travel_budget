@@ -3063,7 +3063,7 @@ function renderChildHistory() {
                     <span class="amount-jpy">¥${tx.jpy}</span>
                     <span class="amount-twd">NT$ ${tx.twd}</span>
                 </div>
-                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', false); event.stopPropagation();">✏️</button>
+                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', false, this); event.stopPropagation();">✏️</button>
                 <button class="delete-item-btn" onclick="deleteTransaction('${tx.id}', false); event.stopPropagation();">🗑️</button>
             </div>
         `;
@@ -3306,7 +3306,7 @@ function renderParentHistory() {
                     <span class="amount-jpy">¥${tx.jpy}</span>
                     <span class="amount-twd">NT$ ${tx.twd}</span>
                 </div>
-                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', true); event.stopPropagation();">✏️</button>
+                <button class="card-icon-btn" style="margin-right: 6px;" onclick="editTransaction('${tx.id}', true, this); event.stopPropagation();">✏️</button>
                 <button class="delete-item-btn" onclick="deleteTransaction('${tx.id}', true); event.stopPropagation();">🗑️</button>
             </div>
         `;
@@ -4196,8 +4196,8 @@ function setupEventListeners() {
 
 // ==================== 12. 記帳修改與雲端資料庫同步功能 ====================
 
-// 編輯記帳
-function editTransaction(id, isParentView) {
+// 編輯記帳 (行內展開修改表單，防範任何彈窗遮罩與 Z-Index 衝突)
+function editTransaction(id, isParentView, btnEl) {
     try {
         const tx = state.transactions.find(t => t.id === id);
         if (!tx) {
@@ -4205,21 +4205,13 @@ function editTransaction(id, isParentView) {
             return;
         }
         
-        document.getElementById("edit-tx-id").value = tx.id;
-        document.getElementById("edit-tx-is-parent-view").value = isParentView ? "true" : "false";
+        const itemEl = btnEl.closest('.history-item');
+        if (!itemEl) {
+            alert("找不到消費明細的 HTML 節點！");
+            return;
+        }
         
-        // 渲染成員下拉選單
-        const userSelect = document.getElementById("edit-tx-user");
-        userSelect.innerHTML = "";
-        state.members.forEach(m => {
-            const opt = document.createElement("option");
-            opt.value = m.id;
-            opt.text = `${m.avatar} ${m.name}`;
-            if (m.id === tx.userId) opt.selected = true;
-            userSelect.appendChild(opt);
-        });
-        
-        // 設定日期時間 (轉為 YYYY-MM-DDThh:mm，採用純手動字串格式化，避免任何瀏覽器時區轉換溢出錯誤)
+        // 純手動字串格式化本地日期時間，防範時區溢出錯誤
         let timestamp = tx.timestamp || tx.ts || Date.now();
         let date = new Date(timestamp);
         if (isNaN(date.getTime())) {
@@ -4231,118 +4223,175 @@ function editTransaction(id, isParentView) {
         const h = String(date.getHours()).padStart(2, '0');
         const mi = String(date.getMinutes()).padStart(2, '0');
         const localISOTime = `${y}-${mo}-${d}T${h}:${mi}`;
-        document.getElementById("edit-tx-date").value = localISOTime;
         
-        document.getElementById("edit-tx-jpy").value = tx.jpy;
-        
-        // 類別選擇
-        const catSelect = document.getElementById("edit-tx-category");
-        catSelect.value = tx.category || "飲食";
-        
-        // 支付方式
-        const paySelect = document.getElementById("edit-tx-paymethod");
-        paySelect.value = tx.payMethod || "cash";
-        
-        // 刷卡卡別
-        const cardSelect = document.getElementById("edit-tx-card");
-        cardSelect.innerHTML = '<option value="">-- 選擇信用卡 --</option>';
-        state.creditCards.forEach(c => {
-            const opt = document.createElement("option");
-            opt.value = c.name;
-            opt.text = c.name;
-            if (c.name === tx.cardName) opt.selected = true;
-            cardSelect.appendChild(opt);
+        // 渲染成員下拉選單
+        let memberOptions = "";
+        state.members.forEach(m => {
+            memberOptions += `<option value="${m.id}" ${m.id === tx.userId ? 'selected' : ''}>${m.avatar} ${m.name}</option>`;
         });
         
-        const cardGroup = document.getElementById("edit-tx-card-group");
-        if (tx.payMethod === "card") {
-            cardGroup.classList.remove("hidden");
-        } else {
-            cardGroup.classList.add("hidden");
-        }
+        // 渲染消費類別下拉選單
+        const categories = ["交通", "住宿", "飲食", "活動", "購物", "扭蛋", "玩具", "零食", "飲料", "紀念品"];
+        let catOptions = "";
+        categories.forEach(c => {
+            catOptions += `<option value="${c}" ${c === tx.category ? 'selected' : ''}>${c}</option>`;
+        });
         
-        document.getElementById("edit-tx-note").value = tx.note || "";
+        // 支付方式選項
+        let payOptions = `
+            <option value="cash" ${tx.payMethod === 'cash' ? 'selected' : ''}>💵 現金</option>
+            <option value="card" ${tx.payMethod === 'card' ? 'selected' : ''}>💳 刷卡</option>
+        `;
         
-        // 顯示編輯彈窗 (同時使用 classList 與 inline style 以防範外部 CSS 快取未更新問題)
-        const modal = document.getElementById("edit-transaction-modal");
-        modal.classList.add("active");
-        modal.style.display = "flex";
+        // 信用卡選項
+        let cardOptions = '<option value="">-- 選擇信用卡 --</option>';
+        state.creditCards.forEach(c => {
+            cardOptions += `<option value="${c.name}" ${c.name === tx.cardName ? 'selected' : ''}>${c.name}</option>`;
+        });
+        
+        // 替換該筆明細 HTML 為行內編輯表單
+        itemEl.innerHTML = `
+            <div class="inline-edit-form" style="width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 12px; background-color: var(--accent-purple-light); border-radius: var(--radius-md); border: 2px solid var(--accent-purple); box-sizing: border-box; text-align: left;">
+                <div style="font-weight: bold; font-size: 14px; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
+                    <span>📝 快速修改此筆消費</span>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">消費成員</label>
+                        <select id="inline-tx-user-${tx.id}" style="width: 100%; padding: 6px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            ${memberOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">消費時間</label>
+                        <input type="datetime-local" id="inline-tx-date-${tx.id}" value="${localISOTime}" style="width: 100%; padding: 4px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 12px; background: white; box-sizing: border-box;">
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">日幣金額 (¥)</label>
+                        <input type="number" id="inline-tx-jpy-${tx.id}" value="${tx.jpy}" style="width: 100%; padding: 5px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 13px; background: white; box-sizing: border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">消費類別</label>
+                        <select id="inline-tx-category-${tx.id}" style="width: 100%; padding: 6px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            ${catOptions}
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">支付方式</label>
+                        <select id="inline-tx-pay-${tx.id}" onchange="toggleInlineCardGroup('${tx.id}', this.value)" style="width: 100%; padding: 6px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            ${payOptions}
+                        </select>
+                    </div>
+                    <div id="inline-tx-card-group-${tx.id}" style="display: ${tx.payMethod === 'card' ? 'block' : 'none'};">
+                        <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">刷卡卡別</label>
+                        <select id="inline-tx-card-${tx.id}" style="width: 100%; padding: 6px; border: 1.5px solid var(--text-main); border-radius: 6px; background: white; font-size: 13px;">
+                            ${cardOptions}
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label style="font-size: 11px; font-weight: bold; display: block; margin-bottom: 2px; color: var(--text-main);">備註項目</label>
+                    <input type="text" id="inline-tx-note-${tx.id}" value="${tx.note || ''}" placeholder="寫點什麼..." style="width: 100%; padding: 6px; border: 1.5px solid var(--text-main); border-radius: 6px; font-size: 13px; background: white; box-sizing: border-box;">
+                </div>
+                
+                <div style="display: flex; gap: 8px; margin-top: 5px;">
+                    <button onclick="saveInlineTransactionEdit('${tx.id}', ${isParentView})" style="flex: 1; padding: 8px; background-color: var(--accent-green); border: 2px solid var(--text-main); border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 0 var(--text-main); font-size: 13px;">💾 儲存</button>
+                    <button onclick="cancelInlineTransactionEdit(${isParentView})" style="flex: 1; padding: 8px; background-color: var(--bg-primary); border: 2px solid var(--text-main); border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 0 var(--text-main); font-size: 13px;">取消</button>
+                </div>
+            </div>
+        `;
     } catch (err) {
-        alert("開啟編輯視窗失敗！錯誤訊息：\n" + err.message + "\n\n" + err.stack);
+        alert("開啟行內修改表單失敗！錯誤原因：\n" + err.message);
     }
 }
 
-function handleEditPayMethodChange(value) {
-    const cardGroup = document.getElementById("edit-tx-card-group");
-    if (value === "card") {
-        cardGroup.classList.remove("hidden");
-    } else {
-        cardGroup.classList.add("hidden");
-        document.getElementById("edit-tx-card").value = "";
+function toggleInlineCardGroup(id, value) {
+    const cardGroup = document.getElementById(`inline-tx-card-group-${id}`);
+    if (cardGroup) {
+        cardGroup.style.display = (value === "card") ? "block" : "none";
     }
 }
 
-function closeEditTransactionModal() {
-    const modal = document.getElementById("edit-transaction-modal");
-    modal.classList.remove("active");
-    modal.style.display = "none";
-}
-
-function saveTransactionEdit() {
-    const id = document.getElementById("edit-tx-id").value;
-    const isParentView = document.getElementById("edit-tx-is-parent-view").value === "true";
-    
-    const txIndex = state.transactions.findIndex(t => t.id === id);
-    if (txIndex === -1) return;
-    
-    const userId = document.getElementById("edit-tx-user").value;
-    const member = state.members.find(m => m.id === userId);
-    const dateVal = document.getElementById("edit-tx-date").value;
-    const jpyVal = parseFloat(document.getElementById("edit-tx-jpy").value) || 0;
-    const category = document.getElementById("edit-tx-category").value;
-    const payMethod = document.getElementById("edit-tx-paymethod").value;
-    const cardName = document.getElementById("edit-tx-card").value;
-    const note = document.getElementById("edit-tx-note").value;
-    
-    if (jpyVal <= 0) {
-        alert("金額必須大於 0！");
-        return;
-    }
-    if (payMethod === "card" && !cardName) {
-        alert("請選擇刷卡信用卡！");
-        return;
-    }
-    
-    // 計算台幣
-    const twdVal = Math.round(jpyVal * state.exchangeRate);
-    
-    // 更新交易
-    state.transactions[txIndex] = {
-        ...state.transactions[txIndex],
-        userId: userId,
-        userName: member ? member.name : "未知",
-        userAvatar: member ? member.avatar : "❓",
-        timestamp: new Date(dateVal).getTime(),
-        jpy: jpyVal,
-        twd: twdVal,
-        category: category,
-        payMethod: payMethod,
-        cardName: payMethod === "card" ? cardName : null,
-        note: note
-    };
-    
-    // 按時間降序重新排序
-    state.transactions.sort((a, b) => b.timestamp - a.timestamp);
-    
-    saveStateToStorage();
-    closeEditTransactionModal();
-    
-    // 重繪畫面
+function cancelInlineTransactionEdit(isParentView) {
     if (isParentView) {
         renderParentOverview();
     } else {
-        updateChildBudgetDisplay();
         renderChildHistory();
+    }
+}
+
+function saveInlineTransactionEdit(id, isParentView) {
+    try {
+        const txIndex = state.transactions.findIndex(t => t.id === id);
+        if (txIndex === -1) {
+            alert("找不到該筆交易記錄！");
+            return;
+        }
+        
+        const userId = document.getElementById(`inline-tx-user-${id}`).value;
+        const dateVal = document.getElementById(`inline-tx-date-${id}`).value;
+        const jpyVal = parseFloat(document.getElementById(`inline-tx-jpy-${id}`).value) || 0;
+        const category = document.getElementById(`inline-tx-category-${id}`).value;
+        const payMethod = document.getElementById(`inline-tx-pay-${id}`).value;
+        const cardName = document.getElementById(`inline-tx-card-${id}`).value;
+        const note = document.getElementById(`inline-tx-note-${id}`).value;
+        
+        if (!dateVal) {
+            alert("請選擇消費時間！");
+            return;
+        }
+        if (jpyVal <= 0) {
+            alert("金額必須大於 0！");
+            return;
+        }
+        if (payMethod === "card" && !cardName) {
+            alert("請選擇刷卡信用卡！");
+            return;
+        }
+        
+        const member = state.members.find(m => m.id === userId);
+        if (!member) {
+            alert("找不到對應的家庭成員！");
+            return;
+        }
+        
+        // 更新該筆記帳記錄
+        state.transactions[txIndex] = {
+            ...state.transactions[txIndex],
+            userId: userId,
+            userName: member.name,
+            userAvatar: member.avatar,
+            timestamp: new Date(dateVal).getTime(),
+            jpy: jpyVal,
+            twd: Math.round(jpyVal * state.exchangeRate),
+            category: category,
+            payMethod: payMethod,
+            cardName: payMethod === "card" ? cardName : null,
+            note: note.trim()
+        };
+        
+        // 按時間排序
+        state.transactions.sort((a, b) => b.timestamp - a.timestamp);
+        
+        saveStateToStorage();
+        
+        // 重新繪製畫面並完成同步
+        if (isParentView) {
+            renderParentOverview();
+        } else {
+            updateChildBudgetDisplay();
+            renderChildHistory();
+        }
+    } catch (err) {
+        alert("儲存修改資料失敗！錯誤訊息：\n" + err.message);
     }
 }
 
