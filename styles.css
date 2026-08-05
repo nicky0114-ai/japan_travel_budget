@@ -916,6 +916,32 @@ body {
     opacity: 1;
 }
 
+/* 提升明細中編輯與刪除按鈕在手機上的點擊範圍與按壓質感 */
+.history-item-right .card-icon-btn,
+.history-item-right .delete-item-btn {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-primary);
+    border: 2px solid var(--text-main);
+    font-size: 16px;
+    opacity: 0.9;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--text-main);
+    transition: var(--transition-smooth);
+    padding: 0;
+    margin: 0;
+}
+
+.history-item-right .card-icon-btn:active,
+.history-item-right .delete-item-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 0px 0 var(--text-main);
+}
+
 .empty-history-text {
     text-align: center;
     color: var(--text-muted);
